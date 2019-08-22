@@ -91,6 +91,9 @@ class Manager:
         leds.dim_top(1)
         leds.dim_bottom(1)
 
+        for i in range(3):
+            leds.set_rocket(i, 0)
+
         leds.update()
 
         with display.open() as disp:
@@ -99,13 +102,12 @@ class Manager:
 
     def get_renderers(self):
         nickname = NicknameRenderer(self.nickname)
-        cyberpunk = CyberpunkRenderer()
         rainbow = RainbowRenderer()
         flashlight = FlashlightRenderer()
         debug = DebugRenderer()
 
         renderers = {
-            Mode.NICK: [nickname, cyberpunk],
+            Mode.NICK: [nickname],
             Mode.RAINBOW: [rainbow],
             Mode.FLASHLIGHT: [flashlight],
         }
@@ -191,8 +193,26 @@ class NicknameRenderer(Renderer):
         disp.rect(0, 0, WIDTH, HEIGHT, col=col, filled=True)
         disp.print(self.nickname, posx=HEIGHT - round(len(self.nickname) / 2 * 14), posy=30, bg=col)
 
-        for i, state in enumerate(self.rocket):
-            leds.set_rocket(i, 15 if state else 0)
+        if sensors.is_dark():
+            for i, state in enumerate(self.rocket):
+                leds.set_rocket(i, 31 if state else 0)
+
+            for i in leds_top():
+                leds.prep(i, col)
+
+            for i in leds_ambient():
+                leds.prep(i, col)
+        else:
+            for i in range(3):
+                leds.set_rocket(i, 0)
+
+            for i in leds_top():
+                leds.prep(i, BLACK)
+
+            for i in leds_ambient():
+                leds.prep(i, BLACK)
+
+        leds.update()
 
 
 class DebugRenderer(Renderer):
@@ -224,25 +244,6 @@ class FlashlightRenderer(Renderer):
         leds.update()
 
         disp.rect(0, 0, WIDTH, HEIGHT, col=WHITE, filled=True)
-
-
-class CyberpunkRenderer(Renderer):
-
-    BLUE = [0, 184, 255]
-    PINK = [214, 0, 255]
-
-    def render(self, disp, dt, sensors):
-        if sensors.is_dark():
-            for i in leds_top():
-                leds.prep(i, self.PINK)
-            for i in leds_ambient():
-                leds.prep(i, self.BLUE)
-        else:
-            for i in leds_top():
-                leds.prep(i, BLACK)
-            for i in leds_ambient():
-                leds.prep(i, BLACK)
-        leds.update()
 
 
 class RainbowRenderer(Renderer):
