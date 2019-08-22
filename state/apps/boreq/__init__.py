@@ -104,10 +104,11 @@ class Manager:
         nickname = NicknameRenderer(self.nickname)
         rainbow = RainbowRenderer()
         flashlight = FlashlightRenderer()
+        battery = BatteryRenderer()
         debug = DebugRenderer()
 
         renderers = {
-            Mode.NICK: [nickname],
+            Mode.NICK: [nickname, battery],
             Mode.RAINBOW: [rainbow],
             Mode.FLASHLIGHT: [flashlight],
         }
@@ -119,7 +120,8 @@ class Manager:
 
     def get_sensors(self):
         light_level = light_sensor.get_reading()
-        return Sensors(light_level)
+        battery_voltage = os.read_battery()
+        return Sensors(light_level, battery_voltage)
 
     def set_mode(self, mode):
         self.cleanup()
@@ -154,17 +156,43 @@ class Manager:
 
 class Sensors:
 
-    def __init__(self, light_level):
+    def __init__(self, light_level, battery_voltage):
         self.light_level = light_level
+        self.battery_voltage = battery_voltage
 
     def is_dark(self):
         return self.light_level < 50
+
+    def is_low(self):
+        return self.battery_voltage < 3.5
 
 
 class Renderer:
 
     def render(self, disp, dt, sensors):
         render_error('not', 'implemented')
+
+
+class BatteryRenderer(Renderer):
+
+    change_every = 0.1
+
+    def __init__(self):
+        self.enabled = False
+        self.counter = 0
+
+    def render(self, disp, dt, sensors):
+        if sensors.is_low():
+            self.counter += dt
+            if self.counter > self.change_every:
+                self.counter = 0
+                self.enabled = not self.enabled
+
+            col = [255, 0, 0] if self.enabled else BLACK
+            for i in leds_top():
+                leds.prep(i, col)
+
+            leds.update()
 
 
 class NicknameRenderer(Renderer):
@@ -217,12 +245,8 @@ class NicknameRenderer(Renderer):
 
 class DebugRenderer(Renderer):
 
-    def __init__(self):
-        pass
-
     def render(self, disp, dt, sensors):
-        s = '{0:>3}'.format(sensors.light_level)
-
+        s = '{0:>3} {1:>3}'.format(sensors.light_level, sensors.battery_voltage)
         disp.print(s, posx=0, posy=0)
 
 
