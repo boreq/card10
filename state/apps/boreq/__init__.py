@@ -14,6 +14,7 @@ WIDTH = 160
 HEIGHT = 80
 
 BLACK = [0, 0, 0]
+WHITE = [255, 255, 255]
 
 
 def leds_top():
@@ -46,6 +47,7 @@ class Mode:
 
     NICK = 'nick'
     RAINBOW = 'rainbow'
+    FLASHLIGHT = 'flashlight'
 
 
 class Buttons:
@@ -54,11 +56,19 @@ class Buttons:
         self.right_bottom = False
         self.right_bottom_once = False
 
+        self.right_top = False
+        self.right_top_once = False
+
     def update(self):
       now_right_bottom = buttons.read(buttons.BOTTOM_RIGHT)
 
       self.right_bottom_once = not self.right_bottom and now_right_bottom
       self.right_bottom = now_right_bottom
+
+      now_right_top = buttons.read(buttons.TOP_RIGHT)
+
+      self.right_top_once = not self.right_top and now_right_top
+      self.right_top = now_right_top
 
 
 class Manager:
@@ -67,17 +77,22 @@ class Manager:
         self.nickname = nickname
         self.debug = debug
 
-        self.modes = [Mode.NICK]
+        self.set_mode(Mode.NICK)
         self.renderers = self.get_renderers()
 
         self.buttons = Buttons()
 
         self.dt = 0.2
-        self.clear()
 
-    def clear(self):
+    def cleanup(self):
         leds.clear()
         leds.set_powersave(True)
+
+        leds.dim_top(1)
+        leds.dim_bottom(1)
+
+        leds.update()
+
         with display.open() as disp:
             disp.clear().update()
             disp.close()
@@ -86,11 +101,13 @@ class Manager:
         nickname = NicknameRenderer(self.nickname)
         cyberpunk = CyberpunkRenderer()
         rainbow = RainbowRenderer()
+        flashlight = FlashlightRenderer()
         debug = DebugRenderer()
 
         renderers = {
             Mode.NICK: [nickname, cyberpunk],
-            Mode.RAINBOW: [rainbow, debug],
+            Mode.RAINBOW: [rainbow],
+            Mode.FLASHLIGHT: [flashlight],
         }
 
         if self.debug:
@@ -102,14 +119,22 @@ class Manager:
         light_level = light_sensor.get_reading()
         return Sensors(light_level)
 
+    def set_mode(self, mode):
+        self.cleanup()
+        self.modes = [mode]
+
     def process_mode_changes(self):
         if self.buttons.right_bottom_once:
             if Mode.NICK in self.modes:
-                self.modes.remove(Mode.NICK)
-                self.modes.insert(0, Mode.RAINBOW)
+                self.set_mode(Mode.RAINBOW)
             else:
-                self.modes.remove(Mode.RAINBOW)
-                self.modes.insert(0, Mode.NICK)
+                self.set_mode(Mode.NICK)
+
+        if self.buttons.right_top_once:
+            if Mode.FLASHLIGHT in self.modes:
+                self.set_mode(Mode.NICK)
+            else:
+                self.set_mode(Mode.FLASHLIGHT)
 
     def run(self):
         while True:
@@ -181,6 +206,26 @@ class DebugRenderer(Renderer):
         disp.print(s, posx=0, posy=0)
 
 
+class FlashlightRenderer(Renderer):
+
+    def __init__(self):
+        pass
+
+    def render(self, disp, dt, sensors):
+        for i in leds_top():
+            leds.prep(i, WHITE)
+
+        for i in leds_ambient():
+            leds.prep(i, WHITE)
+
+        leds.dim_top(8)
+        leds.dim_bottom(8)
+
+        leds.update()
+
+        disp.rect(0, 0, WIDTH, HEIGHT, col=WHITE, filled=True)
+
+
 class CyberpunkRenderer(Renderer):
 
     BLUE = [0, 184, 255]
@@ -219,7 +264,8 @@ class RainbowRenderer(Renderer):
 
         for i in range(6):
             end_y = (i + 1) * 13 if i < 5 else HEIGHT
-            disp.rect(0, i * 13, WIDTH, end_y, col=Flag.RAINBOW[i], filled=True)
+            col_index = i if self.color_index % 2 == 0 else len(Flag.RAINBOW) - 1 - i
+            disp.rect(0, i * 13, WIDTH, end_y, col=Flag.RAINBOW[col_index], filled=True)
 
         col = Flag.RAINBOW[self.color_index]
         for i in leds_top():
