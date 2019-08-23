@@ -120,13 +120,14 @@ class Manager:
     def get_renderers(self):
         nickname = NicknameRenderer(self.nickname)
         rainbow = RainbowRenderer()
+        bi = BiRenderer()
         flashlight = FlashlightRenderer()
         battery = BatteryRenderer()
         debug = DebugRenderer()
 
         renderers = {
             Mode.NICK: [nickname],
-            Mode.RAINBOW: [rainbow],
+            Mode.RAINBOW: [bi],
             Mode.FLASHLIGHT: [flashlight],
         }
 
@@ -311,6 +312,44 @@ class RainbowRenderer(Renderer):
                 disp.rect(0, i * 13, WIDTH, end_y, col=Flag.RAINBOW[col_index], filled=True)
 
             col = Flag.RAINBOW[self.color_index]
+            for i in leds_top():
+                leds.prep(i, col)
+            for i in leds_ambient():
+                leds.prep(i, col)
+            leds.update()
+
+
+class BiRenderer(Renderer):
+
+    change_every = 0.1
+    flag = Flag.BI
+
+    def __init__(self):
+        self.color_index = 0
+        self.flip = False
+        self.counter = Counter(self.change_every)
+
+    def render(self, disp, dt, sensors):
+        if self.counter.update(dt):
+            self.color_index += 1
+            if self.color_index >= len(self.flag):
+                self.color_index = 0
+
+            self.flip = not self.flip
+
+            line1 = int(2/5 * HEIGHT)
+            line2 = int(line1 + 1/5 * HEIGHT)
+
+            if self.flip:
+                flag = [v for v in self.flag]
+            else:
+                flag = [v for v in reversed(self.flag)]
+
+            disp.rect(0, 0, WIDTH, line1, col=flag[0], filled=True)
+            disp.rect(0, line1, WIDTH, line2, col=flag[1], filled=True)
+            disp.rect(0, line2, WIDTH, HEIGHT, col=flag[2], filled=True)
+
+            col = self.flag[self.color_index]
             for i in leds_top():
                 leds.prep(i, col)
             for i in leds_ambient():
