@@ -16,6 +16,8 @@ HEIGHT = 80
 BLACK = [0, 0, 0]
 WHITE = [255, 255, 255]
 
+ROCKET_BRIGHTNESS_FULL = 31
+
 
 def leds_top():
     return range(11)
@@ -31,15 +33,6 @@ class Flag:
         [214, 2, 112],
         [155, 79, 150],
         [0, 56, 168]
-    ]
-
-    RAINBOW = [
-        [255, 0, 24],
-        [255, 165, 44],
-        [255, 255, 65],
-        [0, 128, 24],
-        [0, 0, 249],
-        [134, 0, 125]
     ]
 
 
@@ -119,7 +112,6 @@ class Manager:
 
     def get_renderers(self):
         nickname = NicknameRenderer(self.nickname)
-        rainbow = RainbowRenderer()
         bi = BiRenderer()
         flashlight = FlashlightRenderer()
         battery = BatteryRenderer()
@@ -260,7 +252,7 @@ class NicknameRenderer(Renderer):
 
             if sensors.is_dark():
                 for i, state in enumerate(self.rocket):
-                    leds.set_rocket(i, 31 if state else 0)
+                    leds.set_rocket(i, ROCKET_BRIGHTNESS_FULL if state else 0)
             else:
                 for i in range(3):
                     leds.set_rocket(i, 0)
@@ -271,7 +263,7 @@ class NicknameRenderer(Renderer):
 class DebugRenderer(Renderer):
 
     def render(self, disp, dt, sensors):
-        s = '{0:>3} {1:>3}'.format(sensors.light_level, sensors.battery_voltage)
+        s = '{0:>3} {1:>3.2f}'.format(sensors.light_level, sensors.battery_voltage)
         disp.print(s, posx=0, posy=0)
 
 
@@ -295,45 +287,19 @@ class FlashlightRenderer(Renderer):
         disp.rect(0, 0, WIDTH, HEIGHT, col=WHITE, filled=True)
 
 
-class RainbowRenderer(Renderer):
-
-    change_every = 0.1
-
-    def __init__(self):
-        self.color_index = 0
-        self.counter = 0
-
-    def render(self, disp, dt, sensors):
-        self.counter += dt
-        if self.counter > self.change_every:
-            self.counter = 0
-
-            self.color_index += 1
-            if self.color_index >= len(Flag.RAINBOW):
-                self.color_index = 0
-
-            for i in range(6):
-                end_y = (i + 1) * 13 if i < 5 else HEIGHT
-                col_index = i if self.color_index % 2 == 0 else len(Flag.RAINBOW) - 1 - i
-                disp.rect(0, i * 13, WIDTH, end_y, col=Flag.RAINBOW[col_index], filled=True)
-
-            col = Flag.RAINBOW[self.color_index]
-            for i in leds_top():
-                leds.prep(i, col)
-            for i in leds_ambient():
-                leds.prep(i, col)
-            leds.update()
-
-
 class BiRenderer(Renderer):
 
     change_every = 0.1
+    change_every_rockets = 0.1
     flag = Flag.BI
 
     def __init__(self):
+        self.counter = Counter(self.change_every)
         self.color_index = 0
         self.flip = False
-        self.counter = Counter(self.change_every)
+
+        self.counter_rockets = Counter(self.change_every_rockets)
+        self.rocket = [True, False, False]
 
     def render(self, disp, dt, sensors):
         if self.counter.update(dt):
@@ -360,6 +326,15 @@ class BiRenderer(Renderer):
                 leds.prep(i, col)
             for i in leds_ambient():
                 leds.prep(i, col)
+            leds.update()
+
+        if self.counter_rockets.update(dt):
+            rocket_state = self.rocket.pop(0)
+            self.rocket.append(rocket_state)
+
+            for i, state in enumerate(self.rocket):
+                leds.set_rocket(i, ROCKET_BRIGHTNESS_FULL if state else 0)
+
             leds.update()
 
 
