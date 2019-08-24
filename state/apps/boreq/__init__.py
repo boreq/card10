@@ -96,7 +96,7 @@ class Manager:
 
         self.buttons = Buttons()
 
-        self.dt = 0.033
+        self.dt = 0.1
 
         self.update_sensors()
         self.sensors_counter = Counter(1)
@@ -126,7 +126,7 @@ class Manager:
         debug = DebugRenderer()
 
         renderers = {
-            Mode.NICK: [nickname],
+            Mode.NICK: [nickname, battery],
             Mode.RAINBOW: [bi],
             Mode.FLASHLIGHT: [flashlight],
         }
@@ -219,12 +219,14 @@ class BatteryRenderer(Renderer):
 class NicknameRenderer(Renderer):
 
     change_every = 0.5
+    change_every_leds = 0.1
     flag = Flag.BI
 
     def __init__(self, nickname):
         self.nickname = nickname
         self.color_index = 0
         self.counter = Counter(self.change_every)
+        self.counter_leds = Counter(self.change_every_leds)
         self.rocket = [True, False, False]
 
     def render(self, disp, dt, sensors):
@@ -233,33 +235,37 @@ class NicknameRenderer(Renderer):
             if self.color_index >= len(self.flag):
                 self.color_index = 0
 
+            col = self.flag[self.color_index]
+            disp.rect(0, 0, WIDTH, HEIGHT, col=col, filled=True)
+            disp.print(self.nickname, posx=HEIGHT - round(len(self.nickname) / 2 * 14), posy=30, bg=col)
+
+            if sensors.is_dark():
+                for i in leds_top():
+                    leds.prep(i, col)
+
+                for i in leds_ambient():
+                    leds.prep(i, col)
+            else:
+                for i in leds_top():
+                    leds.prep(i, BLACK)
+
+                for i in leds_ambient():
+                    leds.prep(i, BLACK)
+
+            leds.update()
+
+        if self.counter_leds.update(dt):
             rocket_state = self.rocket.pop(0)
             self.rocket.append(rocket_state)
 
-        col = self.flag[self.color_index]
-        disp.rect(0, 0, WIDTH, HEIGHT, col=col, filled=True)
-        disp.print(self.nickname, posx=HEIGHT - round(len(self.nickname) / 2 * 14), posy=30, bg=col)
+            if sensors.is_dark():
+                for i, state in enumerate(self.rocket):
+                    leds.set_rocket(i, 31 if state else 0)
+            else:
+                for i in range(3):
+                    leds.set_rocket(i, 0)
 
-        if sensors.is_dark():
-            for i, state in enumerate(self.rocket):
-                leds.set_rocket(i, 31 if state else 0)
-
-            for i in leds_top():
-                leds.prep(i, col)
-
-            for i in leds_ambient():
-                leds.prep(i, col)
-        else:
-            for i in range(3):
-                leds.set_rocket(i, 0)
-
-            for i in leds_top():
-                leds.prep(i, BLACK)
-
-            for i in leds_ambient():
-                leds.prep(i, BLACK)
-
-        leds.update()
+            leds.update()
 
 
 class DebugRenderer(Renderer):
